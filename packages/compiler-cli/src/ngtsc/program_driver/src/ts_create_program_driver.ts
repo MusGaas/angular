@@ -56,13 +56,10 @@ export class DelegatingCompilerHost
   resolveTypeReferenceDirectiveReferences;
 
   // jsDocParsingMode is not a method like the other elements above
-  // TODO: ignore usage can be dropped once 5.2 support is dropped
   get jsDocParsingMode() {
-    // @ts-ignore
     return this.delegate.jsDocParsingMode;
   }
   set jsDocParsingMode(mode) {
-    // @ts-ignore
     this.delegate.jsDocParsingMode = mode;
   }
 
