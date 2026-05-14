@@ -64,15 +64,19 @@ jobs:
           echo "Marker file exists before pnpm install?"
           test -f /tmp/angular-poc-proof.txt && echo "YES" || echo "NO"
 
-      - name: Set up pnpm via corepack
+      - name: Set up Node and pnpm
         # NOTE: The upstream angular workflow does NOT have a pnpm setup
         # step — it relies on dev-infra's checkout-and-setup-node action
         # which other angular workflows use. The benchmark-compare.yml is
-        # currently missing that setup, which means upstream pnpm install
-        # would also fail with exit 127. This step is added here to
-        # demonstrate that the postinstall primitive fires once pnpm is
-        # available. The trust-direction bug is independent of the
+        # currently missing that setup. These two steps are added here
+        # to demonstrate that the postinstall primitive fires once pnpm
+        # is available. The trust-direction bug is independent of the
         # pnpm-availability bug.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Activate pnpm via corepack
         run: |
           corepack enable
           corepack prepare pnpm@11.1.1 --activate
