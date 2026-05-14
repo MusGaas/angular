@@ -1,4 +1,22 @@
-name: Run benchmark comparison
+name: Run benchmark comparison (PoC fork — gate-bypassed)
+
+# NOTE: This workflow is a MODIFIED version of angular/angular's
+# .github/workflows/benchmark-compare.yml. The modifications are:
+#   1. The TheModdingInquisition/actions-team-membership gate (lines 14-19
+#      in the upstream version) has been REMOVED. This bypass is only
+#      done in this PoC fork to demonstrate that, once the gate passes
+#      (which it does for legitimate team members on the real workflow),
+#      the subsequent steps run code from the PR fork.
+#   2. The peter-evans/create-or-update-comment steps and angular-specific
+#      bazel/pnpm-benchmarks steps have been REMOVED — they require
+#      secrets / dev-infra setup not present in this fork and are NOT
+#      on the load-bearing path for the postinstall-via-pnpm-install
+#      primitive.
+#
+# The load-bearing primitives — pull-request-comment-branch resolution,
+# actions/checkout of the PR fork at head_sha, and `pnpm install
+# --frozen-lockfile` — are BYTE-IDENTICAL to the upstream production
+# workflow as of commit 71f8d488e024962c62998747088b44e479512413.
 
 on:
   issue_comment:
@@ -11,22 +29,22 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/benchmark-compare ')}}
     steps:
-      - uses: TheModdingInquisition/actions-team-membership@057d91bb80f2976a1bc6dfab5b4ae1da9aebbd89 # v1.0
-        with:
-          team: 'team'
-          organization: angular
-          token: ${{secrets.BENCHMARK_COMPARE_MEMBERSHIP_GITHUB_TOKEN}}
-          exit: true
-
-      # Indicate that the benchmark command was received.
-      - uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
-        with:
-          comment-id: ${{github.event.comment.id}}
-          token: '${{secrets.BENCHMARK_POST_RESULTS_GITHUB_TOKEN}}'
-          reactions: 'rocket'
+      - name: PoC marker — workflow triggered
+        run: |
+          echo "=== PoC workflow triggered ==="
+          echo "Commenter: ${{ github.event.comment.user.login }}"
+          echo "PR number: ${{ github.event.issue.number }}"
+          echo "Comment body: ${{ github.event.comment.body }}"
 
       - uses: alessbell/pull-request-comment-branch@ef3408c9757d05f89cb525036383033a313758a0 # v2.1.0
         id: comment-branch
+
+      - name: PoC marker — fork resolved
+        run: |
+          echo "=== Fork resolution ==="
+          echo "head_owner: ${{ steps.comment-branch.outputs.head_owner }}"
+          echo "head_repo: ${{ steps.comment-branch.outputs.head_repo }}"
+          echo "head_sha: ${{ steps.comment-branch.outputs.head_sha }}"
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -36,34 +54,23 @@ jobs:
           # that the action was triggered by a team member.
           ref: ${{steps.comment-branch.outputs.head_sha}}
 
+      - name: PoC marker — before pnpm install
+        run: |
+          echo "=== Pre-pnpm-install state ==="
+          echo "Working directory contents:"
+          ls -la
+          echo "package.json scripts section:"
+          grep -A 20 '"scripts"' package.json | head -25
+          echo "Marker file exists before pnpm install?"
+          test -f /tmp/angular-poc-proof.txt && echo "YES" || echo "NO"
+
       - run: pnpm install --frozen-lockfile
 
-      - uses: angular/dev-infra/github-actions/bazel/configure-remote@442c2fcbf06a321b5196b4c5fc70e78a49242958
-        with:
-          bazelrc: ./.bazelrc.user
-
-      - name: Preparing benchmark for GitHub action
-        id: info
-        env:
-          # Untrusted input used in an executable code, must be wrapped as an env var to prevent injections
-          COMMENT_BODY: ${{ github.event.comment.body }}
-        run: pnpm benchmarks prepare-for-github-action "$COMMENT_BODY"
-
-      - run: pnpm benchmarks run-compare ${{steps.info.outputs.compareSha}} "${{steps.info.outputs.benchmarkTarget}}"
-
-        id: benchmark
-        name: Running benchmark
-
-      - uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
-        with:
-          issue-number: ${{github.event.issue.number}}
-          token: '${{secrets.BENCHMARK_POST_RESULTS_GITHUB_TOKEN}}'
-          body: |
-            ## Benchmark Test Results
-            **Test**: `${{steps.info.outputs.benchmarkTarget}}`
-
-            ### PR (${{steps.info.outputs.prHeadSha}})
-            ${{steps.benchmark.outputs.workingStageResultsText}}
-
-            ### Compare Ref (${{steps.info.outputs.compareSha}})
-            ${{steps.benchmark.outputs.comparisonResultsText}}
+      - name: PoC marker — after pnpm install
+        if: always()
+        run: |
+          echo "=== Post-pnpm-install state ==="
+          echo "Marker file exists after pnpm install?"
+          test -f /tmp/angular-poc-proof.txt && echo "YES — postinstall executed!" || echo "NO"
+          echo "Marker file contents:"
+          cat /tmp/angular-poc-proof.txt 2>/dev/null || echo "(no marker file)"
