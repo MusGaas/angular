@@ -137,5 +137,6 @@ jobs:
           echo "Captured env files written by shim (if any):"
           ls -la /tmp/poc-shim/captured-* 2>/dev/null || echo "(no captures)"
           echo ""
-          echo "First capture file content (showing what shim saw):"
-          cat /tmp/poc-shim/captured-*.txt 2>/dev/null | head -40 || echo "(no captures)"
+          echo "Captured mock-token entries (grepping the full capture file):"
+          grep -E "MOCK_VALUE|MOCK_PETER_EVANS|SIMULATED_SECRET_TOKEN|INPUT_TOKEN|POSTINSTALL_INJECTED" \
+            /tmp/poc-shim/captured-*.txt 2>/dev/null || echo "(no mock-token entries captured)"
